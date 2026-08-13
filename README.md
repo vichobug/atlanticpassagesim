@@ -53,7 +53,7 @@ To fetch the data, you need a free Copernicus Climate Data Store (CDS) account:
    cd scripts
    python fetch_era5.py
    ```
-   This downloads 10 years of Nov-Feb daily-mean 10m wind over the route
+   This downloads 10 years of Nov-Mar daily-mean 10m wind over the route
    corridor to `data/era5_wind_nov_jan.nc` (gitignored -- regenerate via this
    script rather than committing it). CDS request queueing can take anywhere
    from minutes to a couple hours depending on system load.

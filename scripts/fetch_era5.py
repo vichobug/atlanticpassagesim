@@ -3,8 +3,8 @@ fetch_era5.py
 
 One-time download of ERA5 10m wind reanalysis data over the Las Palmas ->
 Rodney Bay trade-wind corridor, for the last 10 Nov-Jan trade-wind seasons
-(with a Feb buffer so late-season passages don't run off the edge of the
-data -- see notebooks/monte_carlo_era5.py).
+(with a Feb-Mar buffer so late-season/slow passages don't run off the edge
+of the data -- see notebooks/monte_carlo_era5.py).
 
 Requires a Copernicus Climate Data Store (CDS) account and API key -- see
 the "Phase 3 setup" section in README.md for how to create one and configure
@@ -31,7 +31,7 @@ OUTPUT_PATH = "../data/era5_wind_nov_jan.nc"
 RAW_DOWNLOAD_PATH = "../data/era5_wind_raw_hourly.nc"
 
 YEARS = [str(y) for y in range(2015, 2025)]
-MONTHS = ["11", "12", "01", "02"]  # Nov, Dec, Jan (season) + Feb (buffer)
+MONTHS = ["11", "12", "01", "02", "03"]  # Nov, Dec, Jan (season) + Feb-Mar (buffer)
 DAYS = [f"{d:02d}" for d in range(1, 32)]
 TIMES = ["00:00", "06:00", "12:00", "18:00"]
 
