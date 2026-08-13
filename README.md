@@ -18,6 +18,8 @@ sailed on a Hallberg-Rassy 40 (bluewater cruiser, fin keel, 36.23 ft LWL).
 - `notebooks/plot_polar.py` -- polar diagram plot
 - `notebooks/monte_carlo_toy.py` -- Phase 2: Monte Carlo with synthetic i.i.d. daily wind
 - `notebooks/monte_carlo_era5.py` -- Phase 3: Monte Carlo sampling real historical passages
+- `src/provisioning.py` -- Phase 4: turns a passage-time distribution into a food/water plan
+- `notebooks/provisioning_plan.py` -- Phase 4: runs the Phase 3 simulation and prints a provisioning plan
 
 ## Setup
 
@@ -60,3 +62,21 @@ To fetch the data, you need a free Copernicus Climate Data Store (CDS) account:
    cd notebooks
    python monte_carlo_era5.py
    ```
+
+## Phase 4: provisioning plan
+
+Turns the Phase 3 passage-time distribution into a food/water plan, sized to
+the 95th percentile of simulated passage time (not the mean -- provisioning
+for the average case leaves a coin-flip's worth of crews short) plus a fixed
+contingency buffer for the unexpected (becalming, gear failure, diversion).
+
+Crew size, percentile, and contingency buffer are configured at the top of
+`notebooks/provisioning_plan.py`. Consumption rates (4 L water and 1.8 kg
+food per person per day -- bluewater-cruising rules of thumb; fuel is not
+modeled, since engine hours on this route depend far more on tactics than on
+passage length) live in `src/provisioning.py`.
+
+```
+cd notebooks
+python provisioning_plan.py
+```

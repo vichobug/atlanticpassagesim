@@ -69,22 +69,28 @@ def simulate_passage(boat, ds, course_bearing, route_distance_nm, available_star
     return day_offset, hit_data_edge, start_date
 
 
-def main():
+def run_simulation(n_trials: int = N_TRIALS, verbose: bool = True):
+    """Run the historical-passage Monte Carlo and return the passage_days array.
+
+    Shared entry point so other scripts (e.g. provisioning_plan.py) can reuse
+    the simulation without re-running it standalone via main().
+    """
     boat = Polar("../data/hallberg-rassy40.pol")
     ds = load_wind_field(WIND_DATA_PATH)
     course_bearing = route.course_bearing_deg()
     route_distance_nm = route.total_route_distance_nm()
     available_start_dates = get_available_start_dates(ds)
 
-    print(f"Loaded wind field: {ds['time'].values.min()} to {ds['time'].values.max()}")
-    print(f"{len(available_start_dates)} possible historical start dates (Nov-Jan)")
-    print(f"Route distance: {route_distance_nm:.1f} nm, course bearing: {course_bearing:.1f} deg\n")
+    if verbose:
+        print(f"Loaded wind field: {ds['time'].values.min()} to {ds['time'].values.max()}")
+        print(f"{len(available_start_dates)} possible historical start dates (Nov-Jan)")
+        print(f"Route distance: {route_distance_nm:.1f} nm, course bearing: {course_bearing:.1f} deg\n")
 
     passage_days = []
     start_years_used = []
     edge_hits = 0
 
-    for _ in range(N_TRIALS):
+    for _ in range(n_trials):
         days, hit_edge, start_date = simulate_passage(
             boat, ds, course_bearing, route_distance_nm, available_start_dates
         )
@@ -97,13 +103,20 @@ def main():
 
     hit_cap = np.sum(passage_days >= MAX_DAYS)
     if hit_cap:
-        print(f"WARNING: {hit_cap} trial(s) hit the {MAX_DAYS}-day safety cap -- excluding from stats.\n")
+        if verbose:
+            print(f"WARNING: {hit_cap} trial(s) hit the {MAX_DAYS}-day safety cap -- excluding from stats.\n")
         passage_days = passage_days[passage_days < MAX_DAYS]
 
-    if edge_hits:
+    if edge_hits and verbose:
         print(f"NOTE: {edge_hits} trial(s) ran past the end of the fetched wind data and "
               f"held the last available day's wind for their remaining days. If this count "
               f"is large, widen the Feb buffer in fetch_era5.py.\n")
+
+    return passage_days, route_distance_nm, start_years_used
+
+
+def main():
+    passage_days, route_distance_nm, start_years_used = run_simulation()
 
     mean_d = np.mean(passage_days)
     median_d = np.median(passage_days)
