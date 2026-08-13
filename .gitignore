@@ -3,3 +3,12 @@
 .ipynb_checkpoints/
 *.png
 .venv/
+
+# ERA5 wind data downloads (large, regenerable via scripts/fetch_era5.py)
+*.nc
+*.grib
+*.grib2
+data/era5_*
+
+# CDS API credentials belong in ~/.cdsapirc, never in the repo
+.cdsapirc
