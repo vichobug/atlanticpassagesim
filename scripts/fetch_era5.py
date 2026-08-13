@@ -73,7 +73,7 @@ def fetch():
     client.retrieve("reanalysis-era5-single-levels", request, RAW_DOWNLOAD_PATH)
     print(f"Downloaded raw hourly data to {RAW_DOWNLOAD_PATH}")
 
-    ds = xr.open_dataset(RAW_DOWNLOAD_PATH)
+    ds = xr.open_dataset(RAW_DOWNLOAD_PATH).rename({"valid_time": "time"})
     daily = ds.resample(time="1D").mean()
     daily.to_netcdf(OUTPUT_PATH)
     print(f"Saved daily-mean wind field to {OUTPUT_PATH}")
