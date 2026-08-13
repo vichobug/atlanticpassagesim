@@ -34,15 +34,18 @@ MAX_DAYS = 200  # safety cap against pathological all-calm draws
 rng = np.random.default_rng(seed=42)
 
 
-def get_available_start_dates(ds):
-    """Historical dates (Nov, Dec, Jan only) valid as passage START days.
+SEASON_MONTHS = [11, 12, 1]  # Nov, Dec, Jan
 
-    The walk itself is allowed to read into the fetched Feb buffer -- see
+
+def get_available_start_dates(ds, months=SEASON_MONTHS):
+    """Historical dates in `months` valid as passage START days.
+
+    The walk itself is allowed to read into the fetched Feb-Mar buffer -- see
     fetch_era5.py -- so a late-season start date doesn't run off the edge of
     the data for a normal-length passage.
     """
-    months = ds["time.month"].values
-    season_mask = np.isin(months, [11, 12, 1])
+    ds_months = ds["time.month"].values
+    season_mask = np.isin(ds_months, months)
     return ds["time"].values[season_mask]
 
 
@@ -69,21 +72,24 @@ def simulate_passage(boat, ds, course_bearing, route_distance_nm, available_star
     return day_offset, hit_data_edge, start_date
 
 
-def run_simulation(n_trials: int = N_TRIALS, verbose: bool = True):
+def run_simulation(n_trials: int = N_TRIALS, verbose: bool = True, start_months=SEASON_MONTHS):
     """Run the historical-passage Monte Carlo and return the passage_days array.
 
-    Shared entry point so other scripts (e.g. provisioning_plan.py) can reuse
-    the simulation without re-running it standalone via main().
+    Shared entry point so other scripts (e.g. provisioning_plan.py,
+    sensitivity.py) can reuse the simulation without re-running it standalone
+    via main(). `start_months` restricts which calendar months are eligible
+    as passage start dates (default: the full Nov-Jan season) -- e.g.
+    sensitivity.py passes a single month to isolate that month's passages.
     """
     boat = Polar("../data/hallberg-rassy40.pol")
     ds = load_wind_field(WIND_DATA_PATH)
     course_bearing = route.course_bearing_deg()
     route_distance_nm = route.total_route_distance_nm()
-    available_start_dates = get_available_start_dates(ds)
+    available_start_dates = get_available_start_dates(ds, start_months)
 
     if verbose:
         print(f"Loaded wind field: {ds['time'].values.min()} to {ds['time'].values.max()}")
-        print(f"{len(available_start_dates)} possible historical start dates (Nov-Jan)")
+        print(f"{len(available_start_dates)} possible historical start dates (months {start_months})")
         print(f"Route distance: {route_distance_nm:.1f} nm, course bearing: {course_bearing:.1f} deg\n")
 
     passage_days = []

@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atlantic Passage Sim</title>
+<meta name="description" content="Monte Carlo passage-time simulation and provisioning calculator for the ARC Atlantic crossing, built on real ERA5 wind reanalysis data.">
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;  /* blue - sequential default, magnitude only */
+    --success:        #006300;
+    --card-radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --success:        #0ca30c;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+  main {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  header.hero {
+    padding: 12px 0 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+  header.hero h1 {
+    font-size: 2rem;
+    margin: 0 0 6px;
+    font-weight: 700;
+  }
+  header.hero p {
+    color: var(--text-secondary);
+    margin: 0 0 4px;
+    max-width: 64ch;
+  }
+  header.hero .meta {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-top: 10px;
+  }
+  header.hero a {
+    color: var(--series-1);
+    text-decoration: none;
+  }
+  header.hero a:hover { text-decoration: underline; }
+
+  section { margin-bottom: 44px; }
+  h2 {
+    font-size: 1.25rem;
+    margin: 0 0 4px;
+  }
+  .section-sub {
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    margin: 0 0 18px;
+    max-width: 68ch;
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .stat-tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    padding: 16px 18px;
+  }
+  .stat-tile .label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+  .stat-tile .value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin-top: 4px;
+    font-variant-numeric: proportional-nums;
+  }
+  .stat-tile .unit {
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-left: 3px;
+  }
+  .stat-tile .sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--card-radius);
+    padding: 20px;
+  }
+
+  .chart-wrap { position: relative; }
+  svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+  .bar { fill: var(--series-1); cursor: pointer; }
+  .bar:hover, .bar.hovered { fill: var(--series-1); opacity: 0.75; }
+  .axis-line { stroke: var(--baseline); stroke-width: 1; }
+  .gridline { stroke: var(--gridline); stroke-width: 1; }
+  .tick-label { fill: var(--text-muted); font-size: 11px; }
+  .ref-line { stroke: var(--text-secondary); stroke-width: 1.5; stroke-dasharray: none; }
+  .ref-label { fill: var(--text-secondary); font-size: 11px; font-weight: 600; }
+
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--text-primary);
+    color: var(--page);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translate(-50%, -100%);
+    transition: opacity 0.08s;
+    z-index: 5;
+  }
+  .tooltip strong { font-weight: 700; }
+  .tooltip.visible { opacity: 1; }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+  .legend-swatch {
+    width: 14px;
+    height: 3px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  .table-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-top: 14px;
+  }
+  .table-toggle:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 0.85rem;
+    display: none;
+  }
+  table.data-table.visible { display: table; }
+  table.data-table th, table.data-table td {
+    text-align: right;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--gridline);
+    font-variant-numeric: tabular-nums;
+  }
+  table.data-table th:first-child, table.data-table td:first-child {
+    text-align: left;
+    font-variant-numeric: normal;
+  }
+  table.data-table thead th {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.78rem;
+  }
+
+  .validation-box {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--success);
+    border-radius: var(--card-radius);
+    padding: 18px 20px;
+  }
+  .validation-box p { margin: 6px 0; }
+  .validation-box .headline {
+    font-weight: 700;
+    color: var(--success);
+  }
+
+  .calc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 640px) {
+    .calc-grid { grid-template-columns: 1fr; }
+  }
+  .control {
+    margin-bottom: 20px;
+  }
+  .control label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .control label .control-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .control input[type="range"] {
+    width: 100%;
+    accent-color: var(--series-1);
+  }
+  .control input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--page);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+  }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+  }
+  footer a { color: var(--series-1); }
+  footer ul { padding-left: 18px; margin: 8px 0; }
+
+  .sources { font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; }
+  .sources a { color: var(--text-muted); }
+</style>
+</head>
+<body>
+<main>
+
+  <header class="hero">
+    <h1>Atlantic Passage Sim</h1>
+    <p>A Monte Carlo passage-time and provisioning calculator for the ARC Atlantic
+      crossing — Las Palmas (Gran Canaria) to Rodney Bay (St Lucia), ~2,590 nm,
+      simulated on a Hallberg-Rassy 40 using ten years of real ERA5 wind
+      reanalysis data, sampled as full historical passages rather than
+      independent daily draws.</p>
+    <div class="meta">
+      5,000 simulated trials · real historical wind, not synthetic ·
+      <a href="https://github.com/vichobug/atlanticpassagesim" target="_blank" rel="noopener">source on GitHub</a>
+    </div>
+  </header>
+
+  <section id="overview">
+    <h2>Passage-time distribution</h2>
+    <p class="section-sub">Each trial picks a random historical Nov–Jan start date
+      from 2015–2025 and sails the route day by day through that real wind
+      sequence, so multi-day weather persistence (lulls, squally patches)
+      comes through naturally.</p>
+    <div class="stat-row" id="stat-row"></div>
+  </section>
+
+  <section id="validation">
+    <h2>Validation against real ARC data</h2>
+    <p class="section-sub">How the simulation compares to published results from
+      the actual rally.</p>
+    <div class="validation-box">
+      <p class="headline" id="validation-headline"></p>
+      <p id="validation-body"></p>
+      <p class="sources">Sources:
+        <a href="https://worldcruising.com/events/arc" target="_blank" rel="noopener">World Cruising Club ARC overview</a> ·
+        <a href="https://www.yumpu.com/en/document/view/34079409/arc-2003-results-world-cruising-club" target="_blank" rel="noopener">ARC 2003 results</a> ·
+        <a href="https://blog.noforeignland.com/how-much-diesel-does-a-cruising-sailboat-really-need/" target="_blank" rel="noopener">Cruising diesel budgets</a>
+      </p>
+    </div>
+  </section>
+
+  <section id="histogram-section">
+    <h2>Simulated passage times</h2>
+    <p class="section-sub">Distribution of days-to-arrival across all 5,000 pooled
+      trials (November through January departures).</p>
+    <div class="card">
+      <div class="chart-wrap" id="histogram-wrap">
+        <svg class="chart" id="histogram-chart"></svg>
+        <div class="tooltip" id="histogram-tooltip"></div>
+      </div>
+      <button class="table-toggle" data-target="histogram-table">Show table</button>
+      <table class="data-table" id="histogram-table">
+        <thead><tr><th>Stat</th><th>Days</th></tr></thead>
+        <tbody id="histogram-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="month-section">
+    <h2>Does departure month matter?</h2>
+    <p class="section-sub">Mean passage time by departure month, with the 5th–95th
+      percentile range. If a month's range doesn't move much against the pooled
+      distribution's own spread, pooling all three months together (as the main
+      simulation does) is a reasonable choice.</p>
+    <div class="card">
+      <div class="chart-wrap" id="month-wrap">
+        <svg class="chart" id="month-chart"></svg>
+        <div class="tooltip" id="month-tooltip"></div>
+      </div>
+      <button class="table-toggle" data-target="month-table">Show table</button>
+      <table class="data-table" id="month-table">
+        <thead><tr><th>Month</th><th>n</th><th>Mean</th><th>Median</th><th>5th pct</th><th>95th pct</th><th>Max</th></tr></thead>
+        <tbody id="month-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="calculator">
+    <h2>Provisioning calculator</h2>
+    <p class="section-sub">Sizes water, food, and fuel to a chosen percentile of the
+      simulated passage-time distribution above, plus a contingency buffer —
+      not the mean, since provisioning for the average case leaves a coin-flip's
+      worth of crews short. All numbers below are computed live in your browser
+      from the same 5,000 simulated trials.</p>
+    <div class="card">
+      <div class="calc-grid">
+        <div class="controls">
+          <div class="control">
+            <label for="crew-size">Crew size <span class="control-value" id="crew-size-val">4</span></label>
+            <input type="range" id="crew-size" min="1" max="8" step="1" value="4">
+          </div>
+          <div class="control">
+            <label for="percentile">Sizing percentile <span class="control-value" id="percentile-val">95th</span></label>
+            <input type="range" id="percentile" min="50" max="100" step="1" value="95">
+          </div>
+          <div class="control">
+            <label for="contingency">Contingency buffer <span class="control-value" id="contingency-val">3 days</span></label>
+            <input type="range" id="contingency" min="0" max="10" step="1" value="3">
+          </div>
+        </div>
+        <div class="stat-row" id="calc-stats" style="align-content: start;"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p><strong>Methodology notes</strong></p>
+    <ul>
+      <li>Boat: Hallberg-Rassy 40, real polar (speed) table, 2D-interpolated for arbitrary wind angle/strength.</li>
+      <li>Wind: ERA5 reanalysis (Copernicus Climate Data Store), 2015–2025, daily-mean 10m u/v components.</li>
+      <li>Route: rhumb-line geometry, ~2,590 nm, course ~251° true.</li>
+      <li>Consumption rates: 4 L water + 1.8 kg food per person per day (bluewater-cruising rules of thumb); fuel is a boat-level 12.5 L/day rate reflecting the commonly-cited ARC pattern of motoring 10–20% of the crossing through calms.</li>
+    </ul>
+    <p>Full source, data pipeline, and write-up: <a href="https://github.com/vichobug/atlanticpassagesim" target="_blank" rel="noopener">github.com/vichobug/atlanticpassagesim</a></p>
+  </footer>
+
+</main>
+
+<script>
+(async function () {
+  const res = await fetch('data.json');
+  const data = await res.json();
+
+  const fmt1 = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  const fmt0 = (n) => Math.round(n).toLocaleString();
+
+  // ---- numpy-style linear-interpolation percentile ----
+  function percentile(sortedArr, p) {
+    const n = sortedArr.length;
+    const idx = (p / 100) * (n - 1);
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return sortedArr[lo];
+    const w = idx - lo;
+    return sortedArr[lo] + (sortedArr[hi] - sortedArr[lo]) * w;
+  }
+
+  const pooledDays = data.pooled.passage_days.slice().sort((a, b) => a - b);
+  const pooledSummary = data.pooled.summary;
+
+  // ---- Overview stat row ----
+  const statRow = document.getElementById('stat-row');
+  const overviewStats = [
+    { label: 'Mean passage time', value: fmt1(pooledSummary.mean), unit: 'days' },
+    { label: 'Median', value: fmt1(pooledSummary.median), unit: 'days' },
+    { label: '5th – 95th percentile', value: `${fmt0(pooledSummary.p5)}–${fmt0(pooledSummary.p95)}`, unit: 'days' },
+    { label: 'Simulated range', value: `${pooledSummary.min}–${pooledSummary.max}`, unit: 'days', sub: `across ${pooledSummary.n.toLocaleString()} trials` },
+  ];
+  for (const s of overviewStats) {
+    const tile = document.createElement('div');
+    tile.className = 'stat-tile';
+    tile.innerHTML = `<div class="label">${s.label}</div>
+      <div class="value">${s.value}<span class="unit">${s.unit}</span></div>
+      ${s.sub ? `<div class="sub">${s.sub}</div>` : ''}`;
+    statRow.appendChild(tile);
+  }
+
+  // ---- Validation box ----
+  const v = data.validation;
+  document.getElementById('validation-headline').textContent =
+    `Simulated mean (${fmt1(pooledSummary.mean)} days) falls inside the real ARC's widely-cited ${v.real_arc_avg_days_low}–${v.real_arc_avg_days_high} day average.`;
+  document.getElementById('validation-body').textContent = v.note;
+
+  // ---- Generic SVG bar chart with hover tooltip ----
+  function renderBarChart(svgEl, tooltipEl, bars, opts) {
+    const width = 900, height = 320;
+    const margin = { top: 24, right: 20, bottom: 36, left: 44 };
+    const plotW = width - margin.left - margin.right;
+    const plotH = height - margin.top - margin.bottom;
+
+    svgEl.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svgEl.innerHTML = '';
+
+    const maxVal = opts.maxVal ?? Math.max(...bars.map(b => b.value));
+    const yScale = (v) => plotH - (v / maxVal) * plotH;
+    const barW = Math.min(opts.maxBarWidth ?? 24, (plotW / bars.length) * 0.6);
+    const slot = plotW / bars.length;
+
+    const ns = 'http://www.w3.org/2000/svg';
+    const g = document.createElementNS(ns, 'g');
+    g.setAttribute('transform', `translate(${margin.left},${margin.top})`);
+    svgEl.appendChild(g);
+
+    // gridlines (4 horizontal steps)
+    const steps = 4;
+    for (let i = 0; i <= steps; i++) {
+      const val = (maxVal / steps) * i;
+      const y = yScale(val);
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', 0); line.setAttribute('x2', plotW);
+      line.setAttribute('y1', y); line.setAttribute('y2', y);
+      line.setAttribute('class', 'gridline');
+      g.appendChild(line);
+      const label = document.createElementNS(ns, 'text');
+      label.setAttribute('x', -8); label.setAttribute('y', y + 3);
+      label.setAttribute('text-anchor', 'end');
+      label.setAttribute('class', 'tick-label');
+      label.textContent = Math.round(val).toLocaleString();
+      g.appendChild(label);
+    }
+
+    // baseline
+    const base = document.createElementNS(ns, 'line');
+    base.setAttribute('x1', 0); base.setAttribute('x2', plotW);
+    base.setAttribute('y1', plotH); base.setAttribute('y2', plotH);
+    base.setAttribute('class', 'axis-line');
+    g.appendChild(base);
+
+    // reference lines (e.g. mean/median)
+    (opts.refLines || []).forEach(ref => {
+      const y = yScale(ref.value);
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', 0); line.setAttribute('x2', plotW);
+      line.setAttribute('y1', y); line.setAttribute('y2', y);
+      line.setAttribute('class', 'ref-line');
+      line.setAttribute('stroke-dasharray', '4 3');
+      g.appendChild(line);
+      const label = document.createElementNS(ns, 'text');
+      label.setAttribute('x', plotW - 4); label.setAttribute('y', y - 5);
+      label.setAttribute('text-anchor', 'end');
+      label.setAttribute('class', 'ref-label');
+      label.textContent = ref.label;
+      g.appendChild(label);
+    });
+
+    bars.forEach((b, i) => {
+      const cx = slot * i + slot / 2;
+      const x = cx - barW / 2;
+      const y = yScale(b.value);
+      const h = plotH - y;
+
+      const rect = document.createElementNS(ns, 'rect');
+      rect.setAttribute('x', x);
+      rect.setAttribute('y', y);
+      rect.setAttribute('width', barW);
+      rect.setAttribute('height', Math.max(h, 0));
+      rect.setAttribute('rx', 3);
+      rect.setAttribute('class', 'bar');
+      rect.setAttribute('tabindex', '0');
+
+      // hover range whisker (optional, for month chart)
+      if (b.rangeLow !== undefined && b.rangeHigh !== undefined) {
+        const wY1 = yScale(b.rangeHigh), wY2 = yScale(b.rangeLow);
+        const whisker = document.createElementNS(ns, 'line');
+        whisker.setAttribute('x1', cx); whisker.setAttribute('x2', cx);
+        whisker.setAttribute('y1', wY1); whisker.setAttribute('y2', wY2);
+        whisker.setAttribute('stroke', 'var(--text-secondary)');
+        whisker.setAttribute('stroke-width', '1.5');
+        g.appendChild(whisker);
+      }
+
+      const showTip = (evt) => {
+        rect.classList.add('hovered');
+        tooltipEl.innerHTML = b.tooltip;
+        tooltipEl.classList.add('visible');
+        const svgRect = svgEl.getBoundingClientRect();
+        const scaleX = svgRect.width / width;
+        const scaleY = svgRect.height / height;
+        const px = (margin.left + cx) * scaleX;
+        const py = (margin.top + y) * scaleY;
+        tooltipEl.style.left = px + 'px';
+        tooltipEl.style.top = py + 'px';
+      };
+      const hideTip = () => {
+        rect.classList.remove('hovered');
+        tooltipEl.classList.remove('visible');
+      };
+      rect.addEventListener('pointerenter', showTip);
+      rect.addEventListener('pointermove', showTip);
+      rect.addEventListener('pointerleave', hideTip);
+      rect.addEventListener('focus', showTip);
+      rect.addEventListener('blur', hideTip);
+
+      g.appendChild(rect);
+
+      // x tick label
+      if (b.tick) {
+        const tick = document.createElementNS(ns, 'text');
+        tick.setAttribute('x', cx); tick.setAttribute('y', plotH + 18);
+        tick.setAttribute('text-anchor', 'middle');
+        tick.setAttribute('class', 'tick-label');
+        tick.textContent = b.tick;
+        g.appendChild(tick);
+      }
+    });
+  }
+
+  // ---- Histogram (pooled) ----
+  const dayMin = pooledSummary.min, dayMax = pooledSummary.max;
+  const counts = {};
+  for (let d = dayMin; d <= dayMax; d++) counts[d] = 0;
+  pooledDays.forEach(d => { counts[d] = (counts[d] || 0) + 1; });
+
+  const histBars = [];
+  for (let d = dayMin; d <= dayMax; d++) {
+    histBars.push({
+      value: counts[d],
+      tick: (d % 2 === 0 || dayMax - dayMin < 14) ? String(d) : '',
+      tooltip: `<strong>${d} day${d === 1 ? '' : 's'}</strong> — ${counts[d].toLocaleString()} trial${counts[d] === 1 ? '' : 's'}`,
+    });
+  }
+
+  const histSvg = document.getElementById('histogram-chart');
+  const histTip = document.getElementById('histogram-tooltip');
+  renderBarChart(histSvg, histTip, histBars, { maxBarWidth: 22 });
+
+  document.getElementById('histogram-table-body').innerHTML = `
+    <tr><td>Mean</td><td>${fmt1(pooledSummary.mean)}</td></tr>
+    <tr><td>Median</td><td>${fmt1(pooledSummary.median)}</td></tr>
+    <tr><td>Std dev</td><td>${fmt1(pooledSummary.std)}</td></tr>
+    <tr><td>5th percentile</td><td>${fmt1(pooledSummary.p5)}</td></tr>
+    <tr><td>95th percentile</td><td>${fmt1(pooledSummary.p95)}</td></tr>
+    <tr><td>Min</td><td>${pooledSummary.min}</td></tr>
+    <tr><td>Max</td><td>${pooledSummary.max}</td></tr>
+  `;
+
+  // ---- Month comparison chart ----
+  const monthOrder = ['November', 'December', 'January'];
+  const monthBars = monthOrder.map(name => {
+    const s = data.by_month[name].summary;
+    return {
+      value: s.mean,
+      rangeLow: s.p5,
+      rangeHigh: s.p95,
+      tick: name,
+      tooltip: `<strong>${name}</strong> — mean ${fmt1(s.mean)}d, range ${fmt1(s.p5)}–${fmt1(s.p95)}d`,
+    };
+  });
+  const monthSvg = document.getElementById('month-chart');
+  const monthTip = document.getElementById('month-tooltip');
+  const monthMax = Math.max(...monthOrder.map(n => data.by_month[n].summary.p95)) * 1.1;
+  renderBarChart(monthSvg, monthTip, monthBars, { maxBarWidth: 60, maxVal: monthMax });
+
+  const monthTableBody = document.getElementById('month-table-body');
+  monthOrder.forEach(name => {
+    const s = data.by_month[name].summary;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${name}</td><td>${s.n}</td><td>${fmt1(s.mean)}</td><td>${fmt1(s.median)}</td><td>${fmt1(s.p5)}</td><td>${fmt1(s.p95)}</td><td>${s.max}</td>`;
+    monthTableBody.appendChild(tr);
+  });
+
+  // ---- Table toggles ----
+  document.querySelectorAll('.table-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.target);
+      const showing = target.classList.toggle('visible');
+      btn.textContent = showing ? 'Hide table' : 'Show table';
+    });
+  });
+
+  // ---- Provisioning calculator ----
+  const rates = data.provisioning_rates;
+  const crewInput = document.getElementById('crew-size');
+  const pctInput = document.getElementById('percentile');
+  const contInput = document.getElementById('contingency');
+  const crewVal = document.getElementById('crew-size-val');
+  const pctVal = document.getElementById('percentile-val');
+  const contVal = document.getElementById('contingency-val');
+  const calcStats = document.getElementById('calc-stats');
+
+  function ordinal(n) {
+    const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  function updateCalculator() {
+    const crew = parseInt(crewInput.value, 10);
+    const pct = parseInt(pctInput.value, 10);
+    const contingency = parseInt(contInput.value, 10);
+
+    crewVal.textContent = crew;
+    pctVal.textContent = pct >= 100 ? 'worst-case' : ordinal(pct);
+    contVal.textContent = `${contingency} day${contingency === 1 ? '' : 's'}`;
+
+    const simDays = pct >= 100 ? pooledDays[pooledDays.length - 1] : percentile(pooledDays, pct);
+    const plannedDays = simDays + contingency;
+    const water = plannedDays * crew * rates.water_l_per_person_day;
+    const food = plannedDays * crew * rates.food_kg_per_person_day;
+    const fuel = plannedDays * rates.fuel_l_per_day;
+
+    calcStats.innerHTML = `
+      <div class="stat-tile">
+        <div class="label">Planned duration</div>
+        <div class="value">${fmt1(plannedDays)}<span class="unit">days</span></div>
+        <div class="sub">${fmt1(simDays)}d simulated + ${contingency}d buffer</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Water</div>
+        <div class="value">${fmt0(water)}<span class="unit">L</span></div>
+        <div class="sub">${rates.water_l_per_person_day} L/person/day</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Food</div>
+        <div class="value">${fmt0(food)}<span class="unit">kg</span></div>
+        <div class="sub">${rates.food_kg_per_person_day} kg/person/day</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Fuel</div>
+        <div class="value">${fmt0(fuel)}<span class="unit">L</span></div>
+        <div class="sub">${rates.fuel_l_per_day} L/day, boat-level</div>
+      </div>
+    `;
+  }
+
+  [crewInput, pctInput, contInput].forEach(el => el.addEventListener('input', updateCalculator));
+  updateCalculator();
+
+})();
+</script>
+</body>
+</html>

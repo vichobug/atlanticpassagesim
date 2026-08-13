@@ -8,6 +8,11 @@ estimate passage-time distributions and provisioning needs.
 to Rodney Bay (St Lucia) -- the classic ARC rally route, ~2600-2700 nm --
 sailed on a Hallberg-Rassy 40 (bluewater cruiser, fin keel, 36.23 ft LWL).
 
+**Live demo**: [github pages site](https://vichobug.github.io/atlanticpassagesim/) --
+an interactive showcase with the passage-time distribution, departure-month
+sensitivity, and a live provisioning calculator, all computed client-side
+from the precomputed simulation data.
+
 ## Project structure
 
 - `data/hallberg-rassy40.pol` -- real polar data (TWA x TWS -> boat speed)
@@ -18,8 +23,11 @@ sailed on a Hallberg-Rassy 40 (bluewater cruiser, fin keel, 36.23 ft LWL).
 - `notebooks/plot_polar.py` -- polar diagram plot
 - `notebooks/monte_carlo_toy.py` -- Phase 2: Monte Carlo with synthetic i.i.d. daily wind
 - `notebooks/monte_carlo_era5.py` -- Phase 3: Monte Carlo sampling real historical passages
-- `src/provisioning.py` -- Phase 4: turns a passage-time distribution into a food/water plan
+- `src/provisioning.py` -- Phase 4: turns a passage-time distribution into a food/water/fuel plan
 - `notebooks/provisioning_plan.py` -- Phase 4: runs the Phase 3 simulation and prints a provisioning plan
+- `notebooks/sensitivity.py` -- Phase 5: departure-month and crew-size sensitivity
+- `notebooks/export_site_data.py` -- Phase 6: dumps simulation output to `docs/data.json` for the showcase site
+- `docs/index.html` -- Phase 6: interactive GitHub Pages showcase site (charts + live provisioning calculator)
 
 ## Setup
 
@@ -84,6 +92,47 @@ per-trial calm/motoring days) live in `src/provisioning.py`.
 cd notebooks
 python provisioning_plan.py
 ```
+
+## Phase 5: sensitivity analysis
+
+Checks two assumptions the rest of the project makes: that pooling Nov/Dec/Jan
+departures into one distribution is reasonable, and that water/food/fuel
+scale the way you'd expect with crew size.
+
+```
+cd notebooks
+python sensitivity.py
+```
+
+Departure month shifts the mean by less than the pooled distribution's own
+std dev (in the most recent run: ~1.7 days of spread across months vs. a 2.4
+day pooled std dev), so pooling all three months is a reasonable choice
+rather than one that's hiding a much riskier month. Water and food scale
+linearly with crew size, as expected; fuel doesn't, since it's a boat-level
+rate rather than a per-person one.
+
+## Phase 6: GitHub Pages showcase site
+
+An interactive single-page site (`docs/index.html`) with the passage-time
+histogram, the departure-month comparison, and a live provisioning
+calculator -- all computed client-side in the browser from a precomputed
+data file, no backend or server required.
+
+The site is a static build artifact, not regenerated automatically. To
+refresh it after a data or model change:
+
+```
+cd notebooks
+python export_site_data.py
+```
+
+This re-runs the pooled + per-month simulations and writes `docs/data.json`.
+Commit both `docs/data.json` and any `docs/index.html` changes, push, and
+GitHub Pages redeploys automatically (once enabled -- see below).
+
+**One-time setup**: in the repo's GitHub settings, go to **Settings -> Pages
+-> Source -> Deploy from a branch**, pick **main** and the **/docs** folder,
+save. GitHub serves it at `https://<username>.github.io/<repo>/`.
 
 ## Validation
 
