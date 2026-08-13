@@ -6,13 +6,23 @@ provisioning plan, sized to a chosen percentile of passage time plus a fixed
 contingency buffer -- not the mean, since provisioning for the average case
 means running short on every slower-than-average passage.
 
-Consumption rates are bluewater-cruising rules of thumb (per person per day):
-    water: 4 L  (drinking + cooking; excludes washing -- assumes a watermaker
-                 or strict rationing is not being modeled, just baseline need)
-    food:  1.8 kg (dry-provisions equivalent weight)
-    fuel:  not modeled -- an ARC-route trade-wind passage is primarily sailed,
-           and engine hours depend on tactics (calms motored through) far more
-           than on passage length, so a days-based rate would be misleading.
+Consumption rates are bluewater-cruising rules of thumb:
+    water: 4 L/person/day  (drinking + cooking; excludes washing -- assumes a
+                            watermaker or strict rationing is not being
+                            modeled, just baseline need)
+    food:  1.8 kg/person/day  (dry-provisions equivalent weight)
+    fuel:  a boat-level (not per-person) rate, not tied to this route's
+           actual simulated wind -- the passage-time simulation doesn't track
+           per-trial calm/motoring days, so this uses the commonly-cited ARC
+           rule of thumb instead: most boats motor through ~10-20% of the
+           crossing during calms, budgeting 200-400 L of diesel for a
+           passage this length at a small cruising-diesel burn rate
+           (~3.5 L/hr). FUEL_L_PER_DAY blends that into a flat per-day rate:
+           0.15 motored fraction * 24 h/day * 3.5 L/hr ~= 12.5 L/day, which
+           lands in the middle of that 200-400 L budget over a typical
+           3-week passage. Check against your boat's actual tank capacity --
+           if the planned total exceeds it, you're planning to sail through
+           calms rather than motor, not carry extra fuel.
 """
 
 from dataclasses import dataclass
@@ -21,6 +31,7 @@ import numpy as np
 
 WATER_L_PER_PERSON_DAY = 4.0
 FOOD_KG_PER_PERSON_DAY = 1.8
+FUEL_L_PER_DAY = 12.5
 
 
 @dataclass
@@ -32,6 +43,7 @@ class ProvisioningPlan:
     planned_days: float
     water_liters: float
     food_kg: float
+    fuel_liters: float
 
 
 def plan_for_percentile(
@@ -62,6 +74,7 @@ def plan_for_percentile(
         planned_days=planned_days,
         water_liters=planned_days * crew_size * WATER_L_PER_PERSON_DAY,
         food_kg=planned_days * crew_size * FOOD_KG_PER_PERSON_DAY,
+        fuel_liters=planned_days * FUEL_L_PER_DAY,
     )
 
 
@@ -76,5 +89,7 @@ def format_plan(plan: ProvisioningPlan) -> str:
         "",
         f"Water: {plan.water_liters:.0f} L  ({WATER_L_PER_PERSON_DAY:.1f} L/person/day)",
         f"Food:  {plan.food_kg:.0f} kg  ({FOOD_KG_PER_PERSON_DAY:.1f} kg/person/day)",
+        f"Fuel:  {plan.fuel_liters:.0f} L  ({FUEL_L_PER_DAY:.1f} L/day, boat-level -- ARC rule of thumb, "
+        f"not simulated per-trial)",
     ]
     return "\n".join(lines)

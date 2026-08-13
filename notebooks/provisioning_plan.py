@@ -39,7 +39,8 @@ def main():
     print("For comparison, at other sizing choices:")
     for label, pct in [("median", 50), ("95th pct (planned)", 95), ("worst-case", 100)]:
         p = plan_for_percentile(passage_days, CREW_SIZE, percentile=pct, contingency_days=CONTINGENCY_DAYS)
-        print(f"  {label:<20} {p.planned_days:5.1f} days  ->  {p.water_liters:6.0f} L water, {p.food_kg:6.0f} kg food")
+        print(f"  {label:<20} {p.planned_days:5.1f} days  ->  {p.water_liters:6.0f} L water, "
+              f"{p.food_kg:6.0f} kg food, {p.fuel_liters:5.0f} L fuel")
 
 
 if __name__ == "__main__":

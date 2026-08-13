@@ -75,11 +75,34 @@ contingency buffer for the unexpected (becalming, gear failure, diversion).
 
 Crew size, percentile, and contingency buffer are configured at the top of
 `notebooks/provisioning_plan.py`. Consumption rates (4 L water and 1.8 kg
-food per person per day -- bluewater-cruising rules of thumb; fuel is not
-modeled, since engine hours on this route depend far more on tactics than on
-passage length) live in `src/provisioning.py`.
+food per person per day -- bluewater-cruising rules of thumb; 12.5 L/day
+fuel, a boat-level ARC rule of thumb rather than something derived from this
+route's simulated wind, since the passage-time simulation doesn't track
+per-trial calm/motoring days) live in `src/provisioning.py`.
 
 ```
 cd notebooks
 python provisioning_plan.py
 ```
+
+## Validation
+
+Simulated passage time (5000 trials, HR40, corrected polar table, full
+Nov-Mar ERA5 buffer): **mean 18.0 days, median 17.0, 5th-95th pct 15-22
+days, max 26 days**.
+
+The real ARC's Las Palmas -> Rodney Bay crossing is widely reported at
+**18-21 days average** across the whole (mixed-boat-type) fleet -- the
+simulated mean falls right inside that band. A modest cruising boat in the
+2003 ARC ("Albatros") finished in 16d 5h, close to this simulation's median;
+the fastest-ever crossing (8d 6h, the maxi racer *Rambler 88* in 2016) is
+an extreme-performance outlier not comparable to a cruising monohull like
+the HR40 and isn't expected to match. Real ARC skippers also commonly
+report motoring through 10-20% of the crossing and budgeting 200-400 L of
+diesel for it -- the basis for this project's fuel-provisioning rate (see
+Phase 4 above).
+
+Sources:
+[World Cruising Club ARC overview](https://worldcruising.com/events/arc),
+[ARC 2003 results](https://www.yumpu.com/en/document/view/34079409/arc-2003-results-world-cruising-club),
+[NoForeignLand: How much diesel does a cruising sailboat really need?](https://blog.noforeignland.com/how-much-diesel-does-a-cruising-sailboat-really-need/)
