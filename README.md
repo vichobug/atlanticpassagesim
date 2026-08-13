@@ -53,10 +53,13 @@ To fetch the data, you need a free Copernicus Climate Data Store (CDS) account:
    cd scripts
    python fetch_era5.py
    ```
-   This downloads 10 years of Nov-Mar daily-mean 10m wind over the route
-   corridor to `data/era5_wind_nov_jan.nc` (gitignored -- regenerate via this
+   This makes two CDS requests -- 10 years of Nov-Mar daily-mean 10m wind
+   over the route corridor, plus a Jan-Mar buffer request for the year after
+   the last season (so the final season has a real buffer to walk into
+   instead of falling off the edge of the data) -- and saves the combined
+   result to `data/era5_wind_nov_jan.nc` (gitignored -- regenerate via this
    script rather than committing it). CDS request queueing can take anywhere
-   from minutes to a couple hours depending on system load.
+   from minutes to a couple hours depending on system load, per request.
 6. Once the data file exists, run the Monte Carlo simulation:
    ```
    cd notebooks

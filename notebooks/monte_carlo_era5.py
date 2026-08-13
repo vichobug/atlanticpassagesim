@@ -100,12 +100,14 @@ def run_simulation(n_trials: int = N_TRIALS, verbose: bool = True):
             edge_hits += 1
 
     passage_days = np.array(passage_days)
+    start_years_used = np.array(start_years_used)
 
-    hit_cap = np.sum(passage_days >= MAX_DAYS)
-    if hit_cap:
+    hit_cap = passage_days >= MAX_DAYS
+    if hit_cap.any():
         if verbose:
-            print(f"WARNING: {hit_cap} trial(s) hit the {MAX_DAYS}-day safety cap -- excluding from stats.\n")
-        passage_days = passage_days[passage_days < MAX_DAYS]
+            print(f"WARNING: {hit_cap.sum()} trial(s) hit the {MAX_DAYS}-day safety cap -- excluding from stats.\n")
+        passage_days = passage_days[~hit_cap]
+        start_years_used = start_years_used[~hit_cap]
 
     if edge_hits and verbose:
         print(f"NOTE: {edge_hits} trial(s) ran past the end of the fetched wind data and "

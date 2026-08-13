@@ -43,11 +43,22 @@ data portal (`cds.climate.copernicus.eu`), which is why the setup requires a
 free CDS account + API key + one-time license acceptance for the specific
 dataset (`reanalysis-era5-single-levels`) before the API will serve data.
 
-### 2a. Raw download: `era5_wind_raw_hourly.nc`
+### 2a. Raw download: `era5_wind_raw_hourly.nc` + `era5_wind_raw_hourly_buffer.nc`
 
-Fetched by `scripts/fetch_era5.py` via the `cdsapi` Python client, one CDS API
-request for the full multi-year, multi-variable pull. Format: NetCDF
-(originally GRIB internally, converted server-side).
+Fetched by `scripts/fetch_era5.py` via the `cdsapi` Python client, as **two**
+CDS API requests. Format: NetCDF (originally GRIB internally, converted
+server-side).
+
+The main request pulls the full `YEARS x MONTHS` cross product (see below).
+Because CDS requests take year and month as independent lists, this already
+gives every season *except the last* a real Feb-Mar buffer -- e.g.
+year=2016/month=01-03 covers the buffer after the 2015 Nov-Dec season -- but
+the final season (Nov-Dec of `YEARS[-1]`) needs Jan-Mar of the *following*
+year, which can't be expressed by just adding that year to `YEARS` (it would
+also request Nov-Dec of a year that hasn't happened yet). So a second,
+buffer-only request pulls `BUFFER_YEAR`'s (`YEARS[-1] + 1`) Jan-Mar into
+`era5_wind_raw_hourly_buffer.nc`, and `fetch()` concatenates the two before
+resampling.
 
 **Request parameters** (`fetch_era5.py`'s `build_request()`):
 
@@ -55,14 +66,18 @@ request for the full multi-year, multi-variable pull. Format: NetCDF
 |---|---|---|
 | `product_type` | `reanalysis` | The historical best-estimate reconstruction (as opposed to a forecast ensemble) |
 | `variable` | `10m_u_component_of_wind`, `10m_v_component_of_wind` | Wind velocity components 10m above ground/sea surface -- the standard meteorological measurement height |
-| `year` | 2015-2024 | Last 10 years, one full decade of trade-wind seasons |
-| `month` | 11, 12, 1, 2 | Nov-Dec-Jan (the ARC/trade-wind sailing season) + Feb as a buffer so late-January starts don't run off the edge of the data mid-passage |
+| `year` | 2015-2024 (main request), 2025 (buffer request) | Last 10 years, one full decade of trade-wind seasons, plus the following year for the final season's buffer |
+| `month` | 11, 12, 1, 2, 3 (main request); 1, 2, 3 (buffer request) | Nov-Dec-Jan (the ARC/trade-wind sailing season) + Feb-Mar as a buffer so late-season/slow passages don't run off the edge of the data mid-passage |
 | `day` | 1-31 | All days (invalid combos like Feb 30 are silently ignored by CDS) |
 | `time` | 00:00, 06:00, 12:00, 18:00 UTC | Synoptic hours only, not all 24 -- keeps the download ~4x smaller; a day's mean of 4 evenly-spaced samples is a good enough approximation of the daily mean for this route's synoptic-scale trade winds |
 | `area` | `[N, W, S, E]` bounding box, computed from the route's waypoints + 3 deg margin | Restricts the download to just the Atlantic corridor the route crosses, not the whole globe |
 | `data_format` | `netcdf` | CDS converts its native GRIB to NetCDF server-side before download |
 
-**Resulting file structure** (as actually downloaded, confirmed by inspection):
+**Resulting file structure** (as actually downloaded under the original
+single-request, Nov-Feb version of this fetch, confirmed by inspection --
+stale now that the fetch was split into a main + buffer request with a wider
+Feb-Mar window; regenerate this table after the next real fetch if exact
+counts matter):
 
 | Dimension | Size | Description |
 |---|---|---|
